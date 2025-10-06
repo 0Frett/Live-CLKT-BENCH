@@ -1,0 +1,16 @@
+torch
+torchvision
+torchaudio
+transformers
+peft
+datasets
+openai
+google-generativeai
+wandb
+requests
+google-api-python-client
+IMDbPY
+tqdm
+python-dotenv
+langdetect
+scipy
