@@ -2,26 +2,14 @@ import torch
 import os
 import argparse
 import shutil
-import wandb
-import json
 from datasets import load_dataset
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import LoraConfig, get_peft_model
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 from torch.amp import autocast, GradScaler
-import gc
-from inference import run_inference
-
-
-def load_jsonl(path):
-    """Load a JSONL file as a list of dictionaries."""
-    data = []
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            data.append(json.loads(line))
-    return data
-
+import wandb
+import json
 
 
 def inspect_lora_modules(model):
@@ -46,46 +34,19 @@ def preprocess_unsupervised(example, tokenizer):
         "labels": labels}
 
 
-def evaluate(model, val_data, tokenizer, temperature=0.7, n=1):
-    """
-    Evaluate the model on MCQ validation data.
-    Returns a metric (accuracy by default).
-    """
-    # Run inference
+def evaluate(model, dataloader):
     model.eval()
-    input_data = val_data  # val_data is a list of dicts: {"question": ..., "answer": ...}
-    results = []
-    correct = 0
-    total = 0
-
-    for item in input_data:
-        prompt = item["question"]
-        with torch.no_grad():
-            output = model.generate(
-                **tokenizer(prompt, return_tensors="pt").to(model.device),
-                max_new_tokens=512,
-                temperature=temperature,
-                num_return_sequences=n,
-            )
-        pred_text = tokenizer.decode(output[0], skip_special_tokens=True)
-        item['pred'] = pred_text
-        results.append(item)
-
-        # Simple MCQ accuracy: check if the correct answer text is in pred
-        if "answer" in item:
-            if item["answer"].strip().lower() in pred_text.lower():
-                correct += 1
-            total += 1
-
-    acc = correct / total if total > 0 else 0.0
-
-    # free GPU memory
-    del results
-    torch.cuda.empty_cache()
-    gc.collect()
-
+    total_loss = 0
+    num_batches = 0
+    with torch.no_grad():
+        for batch in dataloader:
+            for k in batch:
+                batch[k] = batch[k].to(model.device)
+            outputs = model(**batch)
+            total_loss += outputs.loss.item()
+            num_batches += 1
     model.train()
-    return acc
+    return total_loss / num_batches
 
 
 def main():
@@ -102,7 +63,7 @@ def main():
     parser.add_argument("--alpha", type=int, default=32)
     parser.add_argument("--dropout", type=float, default=0.2)
     parser.add_argument(
-        "--project_name", type=str, default="supervised-finetuning"
+        "--project_name", type=str, default="Live-CLKT-Bench-Demo-CPT"
     )
     args = parser.parse_args()
 
@@ -127,16 +88,16 @@ def main():
         name=f"run_{os.path.basename(args.output_dir)}"
     )
     
-    if args.model_name == "microsoft/Phi-3.5-mini-instruct":
-        print("Using Phi-3.5-mini-instruct model, setting LoRA config for all-linear modules.")
+
+    if "OLMo" in args.model_name:
         lora_config = LoraConfig(
-        r=args.rank,
-        lora_alpha=args.alpha,
-        lora_dropout=args.dropout,
-        bias="none",
-        task_type="CAUSAL_LM",
-        target_modules="all-linear",
-    )
+            r=args.rank,
+            lora_alpha=args.alpha,
+            target_modules=["q_proj", "v_proj"],
+            lora_dropout=args.dropout,
+            bias="none",
+            task_type="CAUSAL_LM"
+        )
     else:
         lora_config = LoraConfig(
             r=args.rank,
@@ -173,12 +134,11 @@ def main():
     model.print_trainable_parameters()
 
     train_dataset = load_dataset("json", data_files=args.train_file, split="train")
-    val_data = load_jsonl(args.test_file_path)
-    # val_dataset = load_dataset("json", data_files=args.val_file, split="train")
+    val_dataset = load_dataset("json", data_files=args.val_file, split="train")
 
     print("Using preprocess function.")
     train_dataset = train_dataset.map(lambda x: preprocess_unsupervised(x, tokenizer), remove_columns=train_dataset.column_names)
-    # val_dataset = val_dataset.map(lambda x: preprocess_unsupervised(x, tokenizer), remove_columns=val_dataset.column_names)
+    val_dataset = val_dataset.map(lambda x: preprocess_unsupervised(x, tokenizer), remove_columns=val_dataset.column_names)
 
     def collate_fn(batch):
         input_ids = [torch.tensor(b["input_ids"], dtype=torch.long) for b in batch]
@@ -190,13 +150,13 @@ def main():
         return {"input_ids": input_ids, "attention_mask": attention_mask, "labels": labels}
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=True)
-    # val_loader = DataLoader(val_dataset, batch_size=args.batch_size, collate_fn=collate_fn)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, collate_fn=collate_fn)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
     scaler = GradScaler(enabled=torch.cuda.is_available())
 
     train_step_losses = []
-    val_epoch_scores = []
+    val_epoch_losses = []
     train_epoch_losses = []
 
     model.train()
@@ -248,10 +208,10 @@ def main():
         train_epoch_losses.append({"epoch": epoch + 1, "loss": epoch_avg_loss})
         print(f"Epoch {epoch + 1} | Train Epoch Avg Loss: {epoch_avg_loss:.4f}")
 
-        val_score = evaluate(model, val_data)
-        print(f"Epoch {epoch + 1} | Validation loss {val_score:.4f}")
-        wandb.log({"val/score": val_score, "epoch": epoch + 1})
-        val_epoch_scores.append({"epoch": epoch + 1, "score": val_score})
+        val_loss = evaluate(model, val_loader)
+        print(f"Epoch {epoch + 1} | Validation loss {val_loss:.4f}")
+        wandb.log({"val/loss": val_loss, "epoch": epoch + 1})
+        val_epoch_losses.append({"epoch": epoch + 1, "loss": val_loss})
 
         ckpt_dir = os.path.join(args.output_dir, f"checkpoint-epoch-{epoch+1}")
         model.save_pretrained(ckpt_dir)
@@ -261,8 +221,8 @@ def main():
         with open(os.path.join(args.output_dir, "train_step_losses.json"), "w") as f:
             json.dump(train_step_losses, f, indent=2)
 
-        with open(os.path.join(args.output_dir, "val_epoch_scores.json"), "w") as f:
-            json.dump(val_epoch_scores, f, indent=2)
+        with open(os.path.join(args.output_dir, "val_epoch_losses.json"), "w") as f:
+            json.dump(val_epoch_losses, f, indent=2)
         
         with open(os.path.join(args.output_dir, "train_epoch_losses.json"), "w") as f:
             json.dump(train_epoch_losses, f, indent=2)

@@ -25,13 +25,12 @@ def verify_qa(model, meta_data: str, qa_item: dict, templates):
     print("QA Item:", json.dumps(qa_item, ensure_ascii=False))
     print(f"Verification result: {verdict}")
     print(f"Source: {source}")
-
     return log_entry
+
 
 
 def gen_FactQA(model, knowledge, source_lang, langs, templates, save_dir):
     FactQA = {}
-
     # --- Generate Source-Language QA ---
     src_path = os.path.join(save_dir, f"{source_lang}QA.json")
     log_path = os.path.join(save_dir, f"{source_lang}_verification_log.json")
@@ -99,8 +98,8 @@ def gen_FactQA(model, knowledge, source_lang, langs, templates, save_dir):
         with open(save_path, "w", encoding="utf-8") as f:
             json.dump(FactQA[lang], f, indent=2, ensure_ascii=False)
         print(f"Saved {lang} QA: {save_path}")
-
     return FactQA
+
 
 
 def main(training_docs_dir, output_dir, source_lang, qlangs, domain):
@@ -113,7 +112,7 @@ def main(training_docs_dir, output_dir, source_lang, qlangs, domain):
     else:
         raise ValueError("domain must be 'music' or 'movie'")
 
-    model = OpenAIModel_parallel("gpt-4o-mini", temperature=0.8, max_tokens=9999)
+    model = OpenAIModel_parallel("gpt-4o-mini", temperature=0.8, max_tokens=15000)
     time_stamp = os.path.basename(training_docs_dir)
 
     lang_docs_dir = os.path.join(training_docs_dir, source_lang)
@@ -123,11 +122,15 @@ def main(training_docs_dir, output_dir, source_lang, qlangs, domain):
         knowledge_text = train_docs["fact_source"]
 
         save_dir = os.path.join(
-            output_dir, f"{time_stamp}", source_lang, os.path.splitext(doc_fn)[0]
+            output_dir, f"{time_stamp}", 
+            os.path.splitext(doc_fn)[0]
         )
         os.makedirs(save_dir, exist_ok=True)
+        gen_FactQA(
+            model, knowledge_text, source_lang, 
+            qlangs, templates, save_dir
+        )
 
-        gen_FactQA(model, knowledge_text, source_lang, qlangs, templates, save_dir)
 
 
 if __name__ == "__main__":

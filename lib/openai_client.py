@@ -94,3 +94,14 @@ class OpenAIModel_parallel():
             raise result
         return result
 
+
+
+if __name__ == "__main__":
+    model = OpenAIModel_parallel('gpt-4o-mini', temperature=0.8, max_tokens=9999, num_workers=2)
+    output = model.generate(
+        prompt="Say this is a test. Output in json format with two fields: field1 and field2. Each field should contain a short sentence.",
+        num_return_sequences=2,
+        retry=3,
+        response_format={"type": "json_object"}
+    )
+    print(output.text)

@@ -1,6 +1,11 @@
 import requests
 import re
 from datetime import datetime, timedelta
+import argparse
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 
 class SportsDBClient:
     BASE_URL = "https://www.thesportsdb.com/api/v1/json"
@@ -47,6 +52,39 @@ class SportsDBClient:
                 unique_events.append(e)
 
         return unique_events
+    
+    def get_events_by_range(self, start_date: str, end_date: str, league: str, max: int) -> list:
+        """
+        Fetch all events between start_date and end_date (inclusive).
+        start_date, end_date: 'YYYY-MM-DD'
+        """
+        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        end = datetime.strptime(end_date, "%Y-%m-%d").date()
+        current = start
+        all_events = []
+
+        while current <= end:
+            date_str = current.isoformat()
+            daily_events = self.get_events_by_date(date_str, league, window=0)
+            if daily_events:
+                print(f"[SportsDBClient] got {len(daily_events)} events for {date_str}")
+            else:
+                print(f"[SportsDBClient] no events for {date_str}")
+            all_events.extend(daily_events)
+            current += timedelta(days=1)
+            if len(all_events) >= (max+20):
+                break
+
+        # 去重複
+        seen = set()
+        unique_events = []
+        for e in all_events:
+            if e["idEvent"] not in seen:
+                seen.add(e["idEvent"])
+                unique_events.append(e)
+
+        return unique_events
+
 
 
 # ===================== PARSERS =====================
@@ -97,3 +135,13 @@ def get_soccer_event_stats(api_key, event_id):
         stat_name = s["strStat"]
         result[stat_name] = {"home": s.get("intHome"), "away": s.get("intAway")}
     return result
+
+
+if __name__ == "__main__":
+    sports_client = SportsDBClient(api_key=os.getenv("SPORTSDB_API_KEY", ""))
+    events = sports_client.get_events_by_range("2025-09-01", "2025-09-05", "MLB", max=5)
+
+    print(f"Total events: {len(events)}")
+    print(events[:3])
+    print(events[:-3])
+    print(f"Total events: {len(events)}")

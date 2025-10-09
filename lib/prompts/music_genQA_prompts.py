@@ -13,7 +13,7 @@ DOC_TRANSLATE_TEMPLATE = """
     - If the description is already in {lang}, return it unchanged.
     - Return ONLY the JSON object, no extra text.
 
-    Description: {text}
+    Description: {description}
 
     Output Format:
     Return a single JSON object with this structure:

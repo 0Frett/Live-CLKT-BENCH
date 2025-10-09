@@ -14,25 +14,6 @@ from openai_client import OpenAIModel_parallel
 STANCES = ["supportive", "opposing", "neutral"]
 MODEL = OpenAIModel_parallel('gpt-4o-mini-2024-07-18', temperature=0.8, max_tokens=9999)
 
-MC_JUDGE_template = """
-    You are given a multiple-choice QA evaluation task.
-
-    Question: {q}
-    Correct Answer: {ans_choice}. {ans_text}
-    Model Response: {pred}
-
-    Your task:
-    1. Determine if the model's response clearly corresponds to **exactly one option**.
-    2. Accept the response if it correctly matches either:
-        - the correct option letter ({ans_choice}), OR
-        - the correct answer text ("{ans_text}").
-    3. Reject responses that:
-        - Contain multiple option letters (e.g., "A and B"),
-        - List several answer choices,
-
-    Output one of the following JSON format:
-    {{"correct": "True"}} or {{"correct": "False"}} 
-"""
 
 NLQ_JUDGE_Template = """
     You are evaluating a question–answer task.
@@ -127,7 +108,7 @@ def nlq_eval(question: str, pred: str, ans_text: str) -> bool:
 
 
 
-def cl_kt_eval(pred_path, qa_type):
+def cl_kt_eval(pred_path):
     pred_data = load_jsonl(pred_path)
 
     # Step 1: Cluster by qid
@@ -147,14 +128,10 @@ def cl_kt_eval(pred_path, qa_type):
         # Map language → correctness
         lang_correct = {}
         for item in items:
-            if qa_type == "mc":
-                is_correct = mcq_eval(
-                    item['question'], item['pred'], 
-                    item['answer'], item['text_answer']
-                )
-            elif qa_type == "nlq":
-                is_correct = nlq_eval(item['question'], item['pred'], item['answer'])
-
+            is_correct = mcq_eval(
+                item['question'], item['pred'], 
+                item['answer'], item['text_answer']
+            )
             lang_correct[item['test_lang']] = is_correct
 
         for item in items:
@@ -216,9 +193,10 @@ if __name__ == "__main__":
         help="Type of benchmark "
     )
     parser.add_argument(
-        "--ep_num",
+        "--epnum",
         type=int,
-        default=5,
+        default=3,
+        help="Number of epochs for finetuned models"
     )
     parser.add_argument(
         "--model_type",
@@ -231,8 +209,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     pred_dir = args.pred_dir
     qa_type = args.qa_type
-    epnum = args.ep_num
     model_type = args.model_type
+
+    epnum =args.epnum
 
     os.makedirs(args.output_dir, exist_ok=True)
     output_file = os.path.join(args.output_dir, f"eval_result.json")
@@ -241,14 +220,14 @@ if __name__ == "__main__":
         print(f"⚠️ Eval result already exists: {output_file}. Please remove it first if you want to re-evaluate.")
         exit(0)
 
-    if qa_type in ['mc', 'nlq']:
+    if qa_type in ['mc']:
         eval_result = {}
         if model_type == "pretrain":
             for fn in os.listdir(pred_dir):
                 ckpt_pred_path = os.path.join(pred_dir, fn)
                 model_name = fn.split("_pred.jsonl")[0]
                 print(f"Evaluating {ckpt_pred_path} ...")
-                seq = cl_kt_eval(ckpt_pred_path, qa_type)
+                seq = cl_kt_eval(ckpt_pred_path)
                 eval_result[model_name] = seq
         else:
             for model in os.listdir(pred_dir):
@@ -257,7 +236,7 @@ if __name__ == "__main__":
                     filename = f"checkpoint-epoch-{epoch}_pred.jsonl"
                     ckpt_pred_path = os.path.join(pred_dir, model, filename)
                     print(f"Evaluating {model} at epoch {epoch}...")
-                    seq.append(cl_kt_eval(ckpt_pred_path, qa_type))
+                    seq.append(cl_kt_eval(ckpt_pred_path))
                 eval_result[model] = seq
 
     else:

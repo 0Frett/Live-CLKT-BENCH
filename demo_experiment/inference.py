@@ -4,7 +4,7 @@ import argparse
 from tqdm import tqdm
 import torch
 import gc
-from llms import LanguageModel, GPT, LanguageModelPretrained
+from llms import LanguageModel, LanguageModelPretrained
 torch.cuda.empty_cache()
 
 def load_jsonl(path):
@@ -16,31 +16,21 @@ def load_jsonl(path):
     return data
 
 
-def run_inference(inferencer, input_data, temperature, n, qa_type):
+def run_inference(inferencer, input_data, temperature, n, max_tokens = 64):
     """Run inference on a single model checkpoint."""
     print(f"[INFO] Running inference")
-    if qa_type == "mc":
-        max_tokens = 64
-    if qa_type == "nlq":
-        max_tokens = 256
 
     results = []
     for item in tqdm(input_data):
         prompt = item["question"]
-        if qa_type == "mc":
-            prompt += "Please output only the correct option letter followed by its text, in format: <option letter>. <option text>."
-        if qa_type == "nlq":
-            prompt += "Please provide a short answer in a few words only."
+        prompt += "Please output only the correct option letter followed by its text, in format: <option letter>. <option text>."
+ 
 
         response = inferencer.generate(
             prompt=prompt, max_new_tokens=max_tokens,
             temperature=temperature, num_return_sequences=n
         )
-        if n == 1:
-            item['pred'] = response[0]
-        else:
-            item['pred'] = response
-
+        item['pred'] = response[0] if n == 1 else response
         results.append(item)
 
         print("------------------------------", flush=True)
@@ -88,10 +78,8 @@ def main():
         default="inference_output/movie/en-ja-fr-es-zh_2025-01-01_2025-08-31/cl-kt/en",
         help="Directory to save generated responses."
     )
-    parser.add_argument("--qa_type", type=str, default="mc")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--n_return", type=int, default=1)
-    parser.add_argument("--ep_num", type=int, default=10)
     args = parser.parse_args()
 
     val_data = load_jsonl(args.test_file_path)
@@ -108,7 +96,7 @@ def main():
         if os.path.exists(save_path):
             print(f"Pass Exist File : {save_path}")
         else:
-            outputs = run_inference(lm, val_data, args.temperature, args.n_return, args.qa_type)
+            outputs = run_inference(lm, val_data, args.temperature, args.n_return)
             save_jsonl(outputs, save_path)
             print(f"[✓] Saved: {save_path}")
         return
@@ -120,7 +108,11 @@ def main():
         raise ValueError("You must provide either --model_id or --model_dir")
 
     # Loop through checkpoints
-    ckpts = [f"checkpoint-epoch-{i}" for i in range(1, args.ep_num + 1)]
+    dirs = [
+        d for d in os.listdir(args.model_dir)
+        if os.path.isdir(os.path.join(args.model_dir, d)) and d.startswith("checkpoint-epoch-")
+    ]
+    ckpts = [f"checkpoint-epoch-{i}" for i in range(1, len(dirs) + 1)]
     for ckpt_name in ckpts:
         ckpt_dir = os.path.join(args.model_dir, ckpt_name)
         if not os.path.isdir(ckpt_dir):
@@ -135,7 +127,7 @@ def main():
             continue
 
         lm = LanguageModel(ckpt_dir)
-        outputs = run_inference(lm, val_data, args.temperature, args.n_return, args.qa_type)
+        outputs = run_inference(lm, val_data, args.temperature, args.n_return)
         save_jsonl(outputs, save_path)
         print(f"[✓] Saved: {save_path}")
 

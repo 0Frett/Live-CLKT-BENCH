@@ -59,20 +59,20 @@ def single_channel_retrieval(
     return all_videos
 
 
-def main(
+def get_music_entity(
     lang: str, 
     start_str: str,
     end_str: str, 
     output_dir: str,
-    max_snippets: int
+    max_music: int
 ):
 
     yt = YouTubeClient()
-    snippets = single_channel_retrieval(yt, lang, start_str, end_str, max_snippets)
+    snippets = single_channel_retrieval(yt, lang, start_str, end_str, max_music)
     
-    save_dir = os.path.join(output_dir, f"{start_str}_{end_str}")
-    os.makedirs(save_dir, exist_ok=True)
-    save_path = os.path.join(save_dir, f"{lang}.json")
+    # save_dir = os.path.join(output_dir, f"{start_str}_{end_str}")
+    os.makedirs(output_dir, exist_ok=True)
+    save_path = os.path.join(output_dir, f"{start_str}_{end_str}.json")
     with open(save_path, 'w', encoding='utf-8') as f:
         json.dump(snippets, f, indent=2, ensure_ascii=False)
 
@@ -112,7 +112,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(
+    get_music_entity(
         args.lang,
         args.start_str,
         args.end_str,

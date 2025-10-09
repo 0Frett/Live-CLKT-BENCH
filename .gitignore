@@ -1,0 +1,7 @@
+.env
+bash/*
+data/*
+models/*
+outputs/*
+**/__pycache__/
+env/*

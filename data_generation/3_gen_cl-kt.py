@@ -63,7 +63,7 @@ def main(
 
     for train_lang in test_langs:
 
-        train_lang_factQA_dir = os.path.join(factqa_dir, train_lang)
+        train_lang_factQA_dir = os.path.join(factqa_dir)
         train_lang_doc_dir = os.path.join(doc_dir, train_lang)
         train_docs, test_mcqs, test_naturalqs = [], [], []
 
@@ -99,16 +99,16 @@ def main(
                             'qid': f"{unit_name}-{idx}"
                         }
                     )
-                    test_naturalqs.append(
-                        {
-                            'question': NATURALQA_TEMPLATE.format(q=qa_pair['question']),
-                            'answer': qa_pair['options'][choice],
-                            'train_lang': train_lang,
-                            'test_lang': test_lang,
-                            'source': unit_name,
-                            'qid': f"{unit_name}-{idx}"
-                        }
-                    )
+                    # test_naturalqs.append(
+                    #     {
+                    #         'question': NATURALQA_TEMPLATE.format(q=qa_pair['question']),
+                    #         'answer': qa_pair['options'][choice],
+                    #         'train_lang': train_lang,
+                    #         'test_lang': test_lang,
+                    #         'source': unit_name,
+                    #         'qid': f"{unit_name}-{idx}"
+                    #     }
+                    # )
 
 
         # ----- Shuffle and split at item-level -----
@@ -129,17 +129,17 @@ def main(
         print(f"[INFO] {train_lang} has {len(val_qids)} val qids out of {len(all_qids)} total qids.")
 
         val_mcq, test_mcq = [], []
-        val_nat, test_nat = [], []
+        # val_nat, test_nat = [], []
         for qid in all_qids:
             if qid in val_qids:
                 val_mcq.extend(qid_groups_mcq[qid])
-                val_nat.extend(qid_groups_nat[qid])
+                # val_nat.extend(qid_groups_nat[qid])
             else:
                 test_mcq.extend(qid_groups_mcq[qid])
-                test_nat.extend(qid_groups_nat[qid])
+                # test_nat.extend(qid_groups_nat[qid])
 
         print(f"[INFO] {train_lang} has {len(val_mcq)} val and {len(test_mcq)} test items (MCQ).")
-        print(f"[INFO] {train_lang} has {len(val_nat)} val and {len(test_nat)} test items (Natural QA).")
+        # print(f"[INFO] {train_lang} has {len(val_nat)} val and {len(test_nat)} test items (Natural QA).")
 
         # Save everything
         save_dir = os.path.join(output_dir, train_lang)
@@ -147,8 +147,8 @@ def main(
         save_jsonl(train_docs, save_dir, 'train_doc')
         save_jsonl(val_mcq, save_dir, 'val_mc')
         save_jsonl(test_mcq, save_dir, 'test_mc')
-        save_jsonl(val_nat, save_dir, 'val_natural')
-        save_jsonl(test_nat, save_dir, 'test_natural')
+        # save_jsonl(val_nat, save_dir, 'val_natural')
+        # save_jsonl(test_nat, save_dir, 'test_natural')
         print(f"[END] Finish Generating {train_lang} CL-KT Benchmark to {save_dir}")
 
 

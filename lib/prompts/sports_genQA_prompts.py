@@ -50,7 +50,7 @@ def build_es_fr_doc(unit: dict) -> str:
     return ES_FR_DOC_TEMPLATE.format(
         sports=unit.get("sports", "Football"),
         league=unit.get("league", "Ligue 1"),
-        date=unit.get("published_time", "")[:10],
+        date=unit.get("date", ""),
         home_team=game["home_team"],
         away_team=game["away_team"],
         home_score=game["score"]["home"],
@@ -78,6 +78,7 @@ def build_en_ja_zh_doc(unit: dict) -> str:
     game_info = unit["game_info"]
     league = game_info.get("league", "")
     sports = game_info.get("sports", "")
+    date = game_info.get("date", "")
     home_team = game_info.get("home_team", "")
     away_team = game_info.get("away_team", "")
     home_score = game_info.get("score", {}).get("home", "")
@@ -96,7 +97,7 @@ def build_en_ja_zh_doc(unit: dict) -> str:
     return EN_JA_ZH_DOC_TEMPLATE.format(
         sports=sports,
         league=league,
-        date=unit["published_time"][:10],
+        date=date,
         home_team=home_team,
         away_team=away_team,
         home_score=home_score,
@@ -112,7 +113,7 @@ def build_en_ja_zh_doc(unit: dict) -> str:
 
 
 DOC_TRANSLATE_TEMPLATE = """
-    Translate the following sports game:{title} information into {lang}.
+    Translate the following sports game information into {lang}.
 
     Instructions:
     - Translate both the field labels and their values.
