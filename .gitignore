@@ -1,7 +1,4 @@
 .env
-bash/*
-data/*
-models/*
-outputs/*
+data
 **/__pycache__/
-env/*
+test_env

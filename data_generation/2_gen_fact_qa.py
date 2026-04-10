@@ -1,7 +1,7 @@
 import json
 import os
 import argparse
-from openai_client import OpenAIModel_parallel
+from openai_client import OpenAIModel
 from prompts import music_genQA_prompts, movie_genQA_prompts, sports_genQA_prompts
 
 
@@ -112,7 +112,7 @@ def main(training_docs_dir, output_dir, source_lang, qlangs, domain):
     else:
         raise ValueError("domain must be 'music' or 'movie'")
 
-    model = OpenAIModel_parallel("gpt-4o-mini", temperature=0.8, max_tokens=15000)
+    model = OpenAIModel("gpt-4o-mini", temperature=0.8, max_tokens=15000)
     time_stamp = os.path.basename(training_docs_dir)
 
     lang_docs_dir = os.path.join(training_docs_dir, source_lang)
@@ -136,8 +136,8 @@ def main(training_docs_dir, output_dir, source_lang, qlangs, domain):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--domain", type=str, default="movie", choices=["movie", "music", "sports"])
-    parser.add_argument("--training_docs_dir", type=str, default="data/movie/training_docs/2025-01-01_2025-07-31")
-    parser.add_argument("--output_dir", type=str, default="data/movie/factQA")
+    parser.add_argument("--training_docs_dir", type=str, default="data/training_docs/movie/2025-01-01_2025-07-31")
+    parser.add_argument("--output_dir", type=str, default="data/factQA/movie")
     parser.add_argument("--source_lang", type=str, default="en")
     parser.add_argument("--qlangs", type=str, nargs="+", default=["en", "ja", "zh", "fr", "es"])
     args = parser.parse_args()

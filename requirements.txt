@@ -1,5 +1,4 @@
 torch
-torchvision
 torchaudio
 transformers
 peft
@@ -14,3 +13,7 @@ tqdm
 python-dotenv
 langdetect
 scipy
+vllm
+tokenizers
+sentencepiece
+python-dotenv

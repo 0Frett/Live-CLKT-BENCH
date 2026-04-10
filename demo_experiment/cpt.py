@@ -53,7 +53,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", type=str, required=True)
     parser.add_argument("--train_file", type=str, required=True)
-    parser.add_argument("--val_file", type=str, required=True)
+    # parser.add_argument("--val_file", type=str, required=True)
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--learning_rate", type=float, default=5e-4)
@@ -134,11 +134,11 @@ def main():
     model.print_trainable_parameters()
 
     train_dataset = load_dataset("json", data_files=args.train_file, split="train")
-    val_dataset = load_dataset("json", data_files=args.val_file, split="train")
+    # val_dataset = load_dataset("json", data_files=args.val_file, split="train")
 
     print("Using preprocess function.")
     train_dataset = train_dataset.map(lambda x: preprocess_unsupervised(x, tokenizer), remove_columns=train_dataset.column_names)
-    val_dataset = val_dataset.map(lambda x: preprocess_unsupervised(x, tokenizer), remove_columns=val_dataset.column_names)
+    # val_dataset = val_dataset.map(lambda x: preprocess_unsupervised(x, tokenizer), remove_columns=val_dataset.column_names)
 
     def collate_fn(batch):
         input_ids = [torch.tensor(b["input_ids"], dtype=torch.long) for b in batch]
@@ -150,13 +150,13 @@ def main():
         return {"input_ids": input_ids, "attention_mask": attention_mask, "labels": labels}
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, collate_fn=collate_fn)
+    # val_loader = DataLoader(val_dataset, batch_size=args.batch_size, collate_fn=collate_fn)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
     scaler = GradScaler(enabled=torch.cuda.is_available())
 
     train_step_losses = []
-    val_epoch_losses = []
+    # val_epoch_losses = []
     train_epoch_losses = []
 
     model.train()
@@ -208,10 +208,10 @@ def main():
         train_epoch_losses.append({"epoch": epoch + 1, "loss": epoch_avg_loss})
         print(f"Epoch {epoch + 1} | Train Epoch Avg Loss: {epoch_avg_loss:.4f}")
 
-        val_loss = evaluate(model, val_loader)
-        print(f"Epoch {epoch + 1} | Validation loss {val_loss:.4f}")
-        wandb.log({"val/loss": val_loss, "epoch": epoch + 1})
-        val_epoch_losses.append({"epoch": epoch + 1, "loss": val_loss})
+        # val_loss = evaluate(model, val_loader)
+        # print(f"Epoch {epoch + 1} | Validation loss {val_loss:.4f}")
+        # wandb.log({"val/loss": val_loss, "epoch": epoch + 1})
+        # val_epoch_losses.append({"epoch": epoch + 1, "loss": val_loss})
 
         ckpt_dir = os.path.join(args.output_dir, f"checkpoint-epoch-{epoch+1}")
         model.save_pretrained(ckpt_dir)
@@ -221,8 +221,8 @@ def main():
         with open(os.path.join(args.output_dir, "train_step_losses.json"), "w") as f:
             json.dump(train_step_losses, f, indent=2)
 
-        with open(os.path.join(args.output_dir, "val_epoch_losses.json"), "w") as f:
-            json.dump(val_epoch_losses, f, indent=2)
+        # with open(os.path.join(args.output_dir, "val_epoch_losses.json"), "w") as f:
+        #     json.dump(val_epoch_losses, f, indent=2)
         
         with open(os.path.join(args.output_dir, "train_epoch_losses.json"), "w") as f:
             json.dump(train_epoch_losses, f, indent=2)

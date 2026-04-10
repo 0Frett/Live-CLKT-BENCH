@@ -1,12 +1,7 @@
 import os
 import json
-from datetime import datetime
-from zoneinfo import ZoneInfo
 from tqdm import tqdm
 from dotenv import load_dotenv
-
-from youtube_client import YouTubeClient
-from openai_client import OpenAIModel_parallel
 from sports_client import SportsDBClient, get_baseball_event_details, get_soccer_event_stats
 import argparse
 
@@ -49,7 +44,22 @@ def fetch_events(lang, start_date, end_date, max_games):
                 match_details = get_soccer_event_stats(sports_client.api_key, match_id)
         except Exception as err:
             print(f"[WARN] Failed to fetch details for {match_id}: {err}")
-
+        
+        # Skip events with missing critical information
+        if any(v is None for v in [
+            config["league"],
+            config["sport"],
+            e.get("dateEvent"),
+            e.get("strHomeTeam"),
+            e.get("strAwayTeam"),
+            e.get("intHomeScore"),
+            e.get("intAwayScore"),
+            match_id,
+            match_details
+        ]):
+            print(f"[WARN] Skipping event {match_id} due to missing fields.")
+            continue
+        
         game_info = {
             "league": config["league"],
             "sports": config["sport"],
@@ -60,6 +70,8 @@ def fetch_events(lang, start_date, end_date, max_games):
             "match_id": match_id,
             "match_details": match_details
         }
+        
+
 
         results.append({
             "title": f"{e.get("strEvent")} ({e.get("dateEvent")})",

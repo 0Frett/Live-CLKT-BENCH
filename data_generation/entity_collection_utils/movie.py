@@ -5,7 +5,15 @@ import argparse
 from tqdm import tqdm
 from typing import List, Dict, Any
 from movie_client import MovieClient
-from constant import LANG_ISO_CODE 
+
+LANG_ISO_CODE = {
+    "en": "US",
+    "fr": "FR",
+    "ja": "JP",
+    "zh": "TW",
+    "es": "ES",
+    # Add more as needed
+}
 
 
 def get_movie_entity(
@@ -35,10 +43,8 @@ def get_movie_entity(
     for movie_title in tqdm(movies, desc="Downloading movie details"):
         try:
             info = client.get_movie_info(movie_title)
+            # print(info)
             # Required fields check
-            if not info.get("title"):
-                print(f"Skipping '{movie_title}': missing Title")
-                continue
             if not info.get("summary"):
                 print(f"Skipping '{movie_title}': missing Summary")
                 continue
@@ -51,7 +57,8 @@ def get_movie_entity(
 
             info["release_dates"] = info.get("release_dates").get(LANG_ISO_CODE[lang])
             info["aka"] = info.get("aka").get(LANG_ISO_CODE[lang])
-            info['title'] = re.sub(r"[^\w\-_. ]", "_", info['title'])
+            info['title'] = re.sub(r"[^\w\-_. ]", "_", movie_title)
+            info['synopsis'] = info.get("synopsis", "")
 
             movie_info.append(info)
             cnt += 1

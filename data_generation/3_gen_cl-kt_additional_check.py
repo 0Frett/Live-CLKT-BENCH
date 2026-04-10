@@ -1,9 +1,15 @@
+# conservative check: filter the entity that is known by eval model
+
 import json
 import argparse
 import os
 from collections import defaultdict
 import random
 from typing import List
+from openai_client import OpenAIModel
+from prompts import music_genQA_prompts, movie_genQA_prompts, sports_genQA_prompts
+from vllms import VLLMModel
+
 
 
 def mcq_format(item):
@@ -47,15 +53,101 @@ def shuffle_options(qa_pair, rng):
     qa_pair["correct_option"] = new_correct
     return qa_pair
 
+    
+def is_known_entity(entity_name, doc_text, lm, gpt, templates, verbose=True):
+    if verbose:
+        print(f"\n[Entity] {entity_name}")
+
+    # 1. model generate
+    is_known_prompt = templates.IS_KNOWN_ENTITY_PROMPT.format(entity_name=entity_name)
+
+    if verbose:
+        print("\n[Prompt to LM]")
+        print(is_known_prompt)
+
+    model_response = lm.generate(inputs=is_known_prompt, num_return_sequences=1)[0][0]
+
+    if verbose:
+        print("\n[Model Response]")
+        print(model_response)
+
+    # 2. judge
+    check_prompt = templates.CHECK_TEMPLATE.format(
+        entity_name=entity_name,
+        doc_text=doc_text,
+        response=model_response
+    )
+
+    if verbose:
+        print("\n[Prompt to Judge]")
+        print(check_prompt)
+
+    out = gpt.generate(
+        prompt=check_prompt,
+        response_format={"type": "json_object"}
+    )
+
+    raw_output = out.text[0]
+
+    if verbose:
+        print("\n[Judge Raw Output]")
+        print(raw_output)
+
+    try:
+        obj = json.loads(raw_output)
+    except Exception as e:
+        if verbose:
+            print("[ERROR] Failed to parse JSON:", e)
+        return False
+
+    is_known = obj.get("is_known", False)
+
+    if verbose:
+        print("\n[Parsed is_known]")
+        print(is_known, type(is_known))
+
+    # normalize output
+    if isinstance(is_known, bool):
+        result = is_known
+    elif isinstance(is_known, str):
+        result = is_known.strip().lower() in ["true", "yes"]
+    else:
+        result = False
+
+    if verbose:
+        print(f"\n[Final Decision] -> {result}")
+        print("=" * 60)
+
+    return result
+
+
 
 def main(
     doc_dir:str,
     factqa_dir:str, 
     test_langs:List[str], 
     output_dir:str, 
-    val_ratio:float=0.2, 
+    val_ratio:float,
+    eval_model:str,
+    domain:str,
+    tp:int,
+    gpu_mem:float,
     seed:int=204,
 ):
+    
+    lm = VLLMModel(
+        model=eval_model, temperature=0.6, max_tokens=4096, 
+        tensor_parallel_size=tp, gpu_memory_utilization=gpu_mem, max_model_len=6000)
+    gpt = OpenAIModel('gpt-4o-mini', temperature=0.6, max_tokens=14000)
+
+    if domain == "music":
+        templates = music_genQA_prompts
+    elif domain == "movie":
+        templates = movie_genQA_prompts
+    elif domain == "sports":
+        templates = sports_genQA_prompts
+    else:
+        raise ValueError("domain must be 'music' or 'movie' or 'sports'")
 
     rng = random.Random(seed)
 
@@ -70,6 +162,9 @@ def main(
             doc_fp = os.path.join(train_lang_doc_dir, f"{unit_name}.json")
             with open(doc_fp, "r", encoding="utf-8") as f:
                 doc_data = json.load(f)
+
+            if is_known_entity(unit_name, doc_data["fact_source"], lm, gpt, templates):
+                continue  # Skip this entity if it's known by the eval model
 
             train_docs.append({
                 "text": doc_data["fact_source"],
@@ -158,13 +253,15 @@ if __name__ == "__main__":
         default=["en", "ja", "fr", "es", "zh"],
         help="List of test language codes"
     )
-    parser.add_argument(
-        "--val_ratio", type=float, default=0.2
-    )
+    parser.add_argument("--val_ratio", type=float, default=0.2)
     parser.add_argument(
         "--training_docs_dir", type=str, 
         default="data/train_docs/movie/2025-01-01_2025-07-31"
     )
+    parser.add_argument("--eval_model", type=str, default=None)
+    parser.add_argument("--domain", type=str, default=None)
+    parser.add_argument("--tp", type=int, default=1)
+    parser.add_argument("--gpu_mem", type=float, default=0.9)
     args = parser.parse_args()
 
     main(
@@ -172,5 +269,9 @@ if __name__ == "__main__":
         args.factqa_dir, 
         args.test_languages, 
         args.output_dir,
-        args.val_ratio
+        args.val_ratio,
+        args.eval_model,
+        args.domain,
+        args.tp,
+        args.gpu_mem
     )

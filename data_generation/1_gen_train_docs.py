@@ -1,7 +1,7 @@
 import json
 import os
 import argparse
-from openai_client import OpenAIModel_parallel
+from openai_client import OpenAIModel
 from prompts import music_genQA_prompts, movie_genQA_prompts, sports_genQA_prompts
 
 
@@ -42,12 +42,12 @@ def get_train_doc(model, unit, lang, domain, templates):
 
 
     elif domain == "sports":
-        if target_lang in ["en", "ja", "zh-tw"]:
+        # if target_lang in ["en", "ja", "zh-tw"]:
             #  baseball template
-            original_doc = templates.build_en_ja_zh_doc(unit)
-        elif target_lang in ["fr", "es"]:
-            #  football template
-            original_doc = templates.build_es_fr_doc(unit)
+        original_doc = templates.build_doc(unit)
+        # elif target_lang in ["fr", "es"]:
+        #     #  football template
+        #     original_doc = templates.build_es_fr_doc(unit)
 
         # print(original_doc)
         if target_lang == "en":
@@ -71,14 +71,14 @@ def get_train_doc(model, unit, lang, domain, templates):
             )
 
         else:
-            # print("sss")
+
             sss = templates.DOC_TRANSLATE_TEMPLATE.format(
                     casts=", ".join(unit.get("top5cast", [])),
                     summary=" ".join(unit.get("summary", [])),
                     synopsis=" ".join(unit.get("synopsis", [])),
                     lang=target_lang
                 )
-            # print(sss)
+
             output = model.generate(
                 prompt=sss,
                 response_format={"type": "json_object"}
@@ -118,7 +118,7 @@ def main(entity_file, output_dir, test_languages, domain):
 
     for source_lang in test_languages:
         print(f"\n=== Generating {domain} docs for language: {source_lang} ===")
-        model = OpenAIModel_parallel('gpt-4o-mini', temperature=0.8, max_tokens=9999)
+        model = OpenAIModel('gpt-4o-mini', temperature=0.8, max_tokens=14000)
 
         save_dir = os.path.join(output_dir, time_stamp, source_lang)
         os.makedirs(save_dir, exist_ok=True)
@@ -139,45 +139,6 @@ def main(entity_file, output_dir, test_languages, domain):
                 json.dump({"fact_source": doc}, f, indent=2, ensure_ascii=False)
 
 
-def masssin(entity_file, output_dir, test_languages, domain):
-    if domain == "music":
-        templates = music_genQA_prompts
-    elif domain == "movie":
-        templates = movie_genQA_prompts
-    elif domain == "sports":
-        templates = sports_genQA_prompts
-    else:
-        raise ValueError("domain must be 'music' or 'movie' or 'sports'")
-
-    model = OpenAIModel_parallel('gpt-4o-mini', temperature=0.8, max_tokens=9999)
-    time_stamp = os.path.splitext(os.path.basename(entity_file))[0]
-  
-    with open(entity_file, 'r', encoding='utf-8') as f:
-        units = json.load(f)
-
-    for source_lang in test_languages:
-        save_dir = os.path.join(output_dir, time_stamp, source_lang)
-        os.makedirs(save_dir, exist_ok=True)
-        
-        for idx, unit in enumerate(units):
-            title = unit.get('title')
-            safe_title = "".join(c if c.isalnum() or c in " -_()" else "_" for c in title)
-            save_path = os.path.join(save_dir, f"{safe_title}.json")
-
-
-            if os.path.exists(save_path):
-                print(f"[{idx}/{len(units)}] Skipping... Train docs already saved to {save_path}")
-                continue
-            else:
-                print(f"[{idx+1}/{len(units)}] Processing {domain}: {title}")
-                doc = get_train_doc(model, unit, source_lang, domain, templates)
-
-            unit_train_doc = {"fact_source": doc}
-
-            with open(save_path, 'w', encoding='utf-8') as f:
-                json.dump(unit_train_doc, f, indent=2, ensure_ascii=False)
-            print(f"Finished: {save_path}")
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -191,7 +152,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         "--output_dir", type=str, 
-        default="data/movie/training_docs"
+        default="data/train_docs/movie"
     )
     parser.add_argument(
         "--test_languages",

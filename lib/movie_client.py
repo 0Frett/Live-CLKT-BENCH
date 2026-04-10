@@ -29,16 +29,28 @@ class MovieClient:
 
 
     def get_movie_info(self, title, lang="en-US"):
-        # IMDb data
         imdb_data = {}
+
+        # IMDb data
         try:
             movies = self.imdb.search_movie(title)
+
+            # print(movies)
             if movies:
                 movie = self.imdb.get_movie(movies[0].getID(), info=['main', 'plot'])
+                print("movie keys:", movie.keys())
+                print("plot:", repr(movie.get("plot")))
+                print("synopsis:", repr(movie.get("synopsis")))
+
                 imdb_data['title'] = movie.get('title', 'N/A')
-                imdb_data['summary'] = movie.get('plot', [])
+
+                plot = movie.get('plot', [])
+                if isinstance(plot, list):
+                    plot = plot[0] if plot else ""
+                imdb_data['summary'] = plot
                 imdb_data['synopsis'] = movie.get('synopsis', 'N/A')
         except Exception as e:
+            print(f"[IMDb ERROR] title={title} error={e}")
             imdb_data['Error'] = f"IMDb error: {e}"
 
         # TMDB data
@@ -51,11 +63,26 @@ class MovieClient:
 
         movie_id = res["results"][0]["id"]
 
-        # Get details
-        # details = requests.get(f"{self.tmdb_v3_base_url}/movie/{movie_id}", headers=self.tmdb_v4_headers).json()
-        credits = requests.get(f"{self.tmdb_v3_base_url}/movie/{movie_id}/credits", headers=self.tmdb_v4_headers).json()
-        releases = requests.get(f"{self.tmdb_v3_base_url}/movie/{movie_id}/release_dates", headers=self.tmdb_v4_headers).json()
-        alt_titles = requests.get(f"{self.tmdb_v3_base_url}/movie/{movie_id}/alternative_titles", headers=self.tmdb_v4_headers).json()
+        details = requests.get(
+            f"{self.tmdb_v3_base_url}/movie/{movie_id}",
+            headers=self.tmdb_v4_headers
+        ).json()
+        credits = requests.get(
+            f"{self.tmdb_v3_base_url}/movie/{movie_id}/credits",
+            headers=self.tmdb_v4_headers
+        ).json()
+        releases = requests.get(
+            f"{self.tmdb_v3_base_url}/movie/{movie_id}/release_dates",
+            headers=self.tmdb_v4_headers
+        ).json()
+        alt_titles = requests.get(
+            f"{self.tmdb_v3_base_url}/movie/{movie_id}/alternative_titles",
+            headers=self.tmdb_v4_headers
+        ).json()
+
+        # fallback summary
+        if not imdb_data.get("summary"):
+            imdb_data["summary"] = details.get("overview", "")
 
         imdb_data['top5cast'] = [c["name"] for c in credits.get("cast", [])[:5]]
 
@@ -63,7 +90,7 @@ class MovieClient:
         for entry in releases.get("results", []):
             country = entry.get("iso_3166_1")
             for rd in entry.get("release_dates", []):
-                if rd.get("type") == 3:  # Theatrical (wide)
+                if rd.get("type") == 3:
                     date = self._format_date(rd.get("release_date"))
                     release_info[country] = date
 
@@ -74,8 +101,8 @@ class MovieClient:
             if aka.get("title")
         }
 
-        # imdb_data['Overview'] = details.get('overview')
         return imdb_data
+
 
     def get_movies(self, time_range, ISOs, max_movies, lang="en-US", page_limit=100):
         start_str, end_str = time_range

@@ -1,5 +1,20 @@
 # LiveCLKTBench 
-Towards Reliable Evaluation of Cross-Lingual Knowledge Transfer in Multilingual LLMs
+
+Evaluating cross-lingual knowledge transfer in large language models (LLMs) is challenging, as correct answers in a target language may arise either from genuine transfer or from prior exposure during pre-training.
+We present **LiveCLKTBench**, an automated generation pipeline specifically designed to isolate and measure **C**ross-**L**ingual **K**nowledge **T**ransfer. Our pipeline identifies self-contained, time-sensitive knowledge entities from real-world domains, filters them based on temporal occurrence, and verifies them against the model’s knowledge. The documents of these valid entities are then used to generate factual questions, which are translated into multiple languages to evaluate transferability across linguistic boundaries.
+
+## Overview
+
+This repository provides two main workflows:
+
+1. **Benchmark generation**
+   - collect valid entities and related documents
+   - generate factual QA instances
+   - 
+
+2. **Model evaluation**
+   - run model inference on generated benchmarks
+   - evaluate question predictions
 
 
 ## Installation
@@ -19,11 +34,18 @@ You can generate benchmarks for various domains (e.g., sports, music, movies) an
 This step identifies valid knowledge entities within a given domain.
 ```
 PYTHONPATH=lib python3 data_generation/0_collect_entity.py \
+    --domain movie \
+    --start_str 2026-01-01 \
+    --end_str 2026-04-01 \
+    --output_dir test_data/entities \
+    --max_entity 20
+
+PYTHONPATH=lib python3 data_generation/0_collect_entity.py \
     --domain sports \
-    --start_str 2025-04-01 \
-    --end_str 2025-06-30 \
-    --output_dir data/entities \
-    --max_entity 30
+    --start_str 2026-03-01 \
+    --end_str 2026-04-01 \
+    --output_dir test_data/entities \
+    --max_entity 20
 ```
 
 Arguments:
@@ -40,8 +62,21 @@ Generates context documents for each collected entity, which will serve as model
 ```
 PYTHONPATH=lib python3 data_generation/1_gen_train_docs.py \
     --domain sports \
-    --entity_file data/entities/sports/2025-07-01_2025-09-30.json \
-    --output_dir data/train_docs/sports \
+    --entity_file test_data/entities/sports/2026-03-01_2026-04-01.json \
+    --output_dir test_data/train_docs/sports \
+    --test_languages en ja fr es zh
+
+
+PYTHONPATH=lib python3 data_generation/1_gen_train_docs.py \
+    --domain movie \
+    --entity_file test_data/entities/movie/2025-01-01_2026-04-01.json \
+    --output_dir test_data/train_docs/movie \
+    --test_languages en ja fr es zh
+
+PYTHONPATH=lib python3 data_generation/1_gen_train_docs.py \
+    --domain music \
+    --entity_file test_data/entities/music/2025-01-01_2026-04-01.json \
+    --output_dir test_data/train_docs/music \
     --test_languages en ja fr es zh
 ```
 
@@ -52,8 +87,20 @@ Creates factual, document-grounded multiple-choice questions for each entity.
 ```
 PYTHONPATH=lib python3 data_generation/2_gen_fact_qa.py \
     --domain sports \
-    --training_docs_dir data/train_docs/sports/2025-07-01_2025-09-30 \
-    --output_dir data/factQA/sports \
+    --training_docs_dir test_data/train_docs/sports/2026-03-01_2026-04-01 \
+    --output_dir test_data/factQA/sports \
+    --qlangs en ja fr es zh
+
+PYTHONPATH=lib python3 data_generation/2_gen_fact_qa.py \
+    --domain music \
+    --training_docs_dir test_data/train_docs/music/2025-12-01_2026-04-01 \
+    --output_dir test_data/factQA/music \
+    --qlangs en ja fr es zh
+
+PYTHONPATH=lib python3 data_generation/2_gen_fact_qa.py \
+    --domain movie \
+    --training_docs_dir test_data/train_docs/movie/2026-01-01_2026-04-01 \
+    --output_dir test_data/factQA/movie \
     --qlangs en ja fr es zh
 ```
 
@@ -64,27 +111,75 @@ PYTHONPATH=lib python3 data_generation/2_gen_fact_qa.py \
 Combines factual QA and document data to construct the final benchmark split into train/validation/test sets.
 ```
 PYTHONPATH=lib python3 data_generation/3_gen_cl-kt.py \
-    --factqa_dir data/factQA/sports/2025-07-01_2025-09-30 \
-    --training_docs_dir data/train_docs/sports/2025-07-01_2025-09-30 \
-    --output_dir data/benchmark/sports \
+    --factqa_dir test_data/factQA/sports/2026-03-01_2026-04-01 \
+    --training_docs_dir test_data/train_docs/sports/2026-03-01_2026-04-01 \
+    --output_dir test_data/benchmark/sports \
+    --test_languages en ja fr es zh \
+    --val_ratio 0.2
+
+
+PYTHONPATH=lib python3 data_generation/3_gen_cl-kt.py \
+    --factqa_dir test_data/factQA/movie/2026-01-01_2026-04-01 \
+    --training_docs_dir test_data/train_docs/movie/2026-01-01_2026-04-01 \
+    --output_dir test_data/benchmark/movie \
+    --test_languages en ja fr es zh \
+    --val_ratio 0.2
+
+
+PYTHONPATH=lib python3 data_generation/3_gen_cl-kt.py \
+    --factqa_dir test_data/factQA/music/2025-12-01_2026-04-01 \
+    --training_docs_dir test_data/train_docs/music/2025-12-01_2026-04-01 \
+    --output_dir test_data/benchmark/music \
     --test_languages en ja fr es zh \
     --val_ratio 0.2
 ```
 
+```
+PYTHONPATH=lib python3 data_generation/3_gen_cl-kt_additional_check.py \
+    --factqa_dir test_data/factQA/sports/2026-03-01_2026-04-01 \
+    --training_docs_dir test_data/train_docs/sports/2026-03-01_2026-04-01 \
+    --output_dir test_data/benchmark_add/sports \
+    --test_languages en ja fr es zh \
+    --val_ratio 0.2 \
+    --eval_model Qwen/Qwen2.5-3B-Instruct \
+    --domain sports \
+    --tp 1 \
+    --gpu_mem 0.9
 
+
+PYTHONPATH=lib python3 data_generation/3_gen_cl-kt_additional_check.py \
+    --factqa_dir test_data/factQA/movie/2026-01-01_2026-04-01 \
+    --training_docs_dir test_data/train_docs/movie/2026-01-01_2026-04-01 \
+    --output_dir test_data/benchmark_add/movie \
+    --test_languages en ja fr es zh \
+    --val_ratio 0.2 \
+    --eval_model Qwen/Qwen2.5-3B-Instruct \
+    --domain movie \
+    --tp 1 \
+    --gpu_mem 0.9
+
+
+PYTHONPATH=lib python3 data_generation/3_gen_cl-kt_additional_check.py \
+    --factqa_dir test_data/factQA/music/2025-12-01_2026-04-01 \
+    --training_docs_dir test_data/train_docs/music/2025-12-01_2026-04-01 \
+    --output_dir test_data/benchmark_add/music \
+    --test_languages en ja fr es zh \
+    --val_ratio 0.2 \
+    --eval_model Qwen/Qwen2.5-3B-Instruct \
+    --domain music \
+    --tp 1 \
+    --gpu_mem 0.9
+```
 
 ## 🧠 Demo Experiment
-
-This section demonstrates how to conduct Continual Pretraining (CPT) and Cross-Lingual Evaluation using the generated benchmark.
 
 1️⃣ Continual Pretraining (CPT)
 Example: source language = English
 ```
-PYTHONPATH=lib python3 demo_experiment/cpt.py \
-    --model_name Qwen/Qwen2.5-3B-Instruct \
-    --train_file data/benchmark/sports/en/train_doc.jsonl \
-    --val_file data/benchmark/sports/en/train_doc.jsonl \
-    --output_dir models/sports/en-ja-fr-es-zh_2025-07-01_2025-09-30/en/Qwen2.5-3B-Instruct \
+python3 demo_experiment/cpt.py \
+    --model_name Qwen/Qwen2.5-1.5B-Instruct \
+    --train_file test_data/benchmark/sports/en/train_doc.jsonl \
+    --output_dir test_models/sports/en/Qwen2.5-1.5B-Instruct \
     --batch_size 1 \
     --learning_rate 5e-4 \
     --num_train_epochs 3 \
@@ -98,21 +193,26 @@ PYTHONPATH=lib python3 demo_experiment/cpt.py \
 2️⃣ Inference
 Example: evaluate source-trained model (en) on test languages = ja, fr, es, zh.
 ```
-PYTHONPATH=lib python3 demo_experiment/inference.py \
-    --model_dir models/sports/en-ja-fr-es-zh_2025-07-01_2025-09-30/en/Qwen2.5-3B-Instruct \
-    --test_file_path data/benchmark/sports/en/test_mc.jsonl \
-    --output_dir data/inference_output/sports/en \
-    --temperature 0.0 \
-    --n_return 1
+PYTHONPATH=lib python3 demo_experiment/lora_inference.py \
+    --model_dir test_models/sports/en/Qwen2.5-3B-Instruct \
+    --test_file_path test_data/benchmark/sports/en/test_mc.jsonl \
+    --output_dir test_data/inference_output/sports/en/finetune \
+    --temperature 0.6
+
+PYTHONPATH=lib python3 demo_experiment/vllm_inference.py \
+    --model_id Qwen/Qwen2.5-3B-Instruct \
+    --test_file_path test_data/benchmark/sports/en/test_mc.jsonl \
+    --output_dir test_data/inference_output/sports/en/pretrain \
+    --temperature 0.6 \
+    --tp 1 \
+    --gpu_mem 0.9
 ```
 
 
 
 3️⃣ Evaluation
-Compare model performance across languages for the same source-trained model (e.g., trained on English).
 ```
-PYTHONPATH=lib python3 demo_experiment/eval.py \
-    --pred_dir data/inference_output/sports/en \
-    --output_dir data/eval_output/sports/en \
-    --epnum 3
+python3 demo_experiment/eval.py \
+  --pred_file test_data/inference_output/sports/en/pretrain/Qwen2.5-3B-Instruct_pred.jsonl \
+  --output_file test_data/eval_result/sports/en/pretrain/Qwen2.5-3B-Instruct_pred.json
 ```

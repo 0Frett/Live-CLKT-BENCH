@@ -1,8 +1,5 @@
-import json
 import os
-import re
 import argparse
-from tqdm import tqdm
 from entity_collection_utils.movie import get_movie_entity
 from entity_collection_utils.sports import get_sport_entity
 from entity_collection_utils.music import get_music_entity
@@ -77,7 +74,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="data/movie/movie_pool",
+        default="data/entities",
         help="Directory to save the collected entity."
     )
     parser.add_argument(

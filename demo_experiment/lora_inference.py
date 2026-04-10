@@ -4,7 +4,7 @@ import argparse
 from tqdm import tqdm
 import torch
 import gc
-from llms import LanguageModel, LanguageModelPretrained
+from llms import LanguageModel
 torch.cuda.empty_cache()
 
 def load_jsonl(path):
@@ -16,7 +16,7 @@ def load_jsonl(path):
     return data
 
 
-def run_inference(inferencer, input_data, temperature, n, max_tokens = 64):
+def run_inference(inferencer, input_data, temperature, max_tokens = 64):
     """Run inference on a single model checkpoint."""
     print(f"[INFO] Running inference")
 
@@ -28,9 +28,9 @@ def run_inference(inferencer, input_data, temperature, n, max_tokens = 64):
 
         response = inferencer.generate(
             prompt=prompt, max_new_tokens=max_tokens,
-            temperature=temperature, num_return_sequences=n
-        )
-        item['pred'] = response[0] if n == 1 else response
+            temperature=temperature, num_return_sequences=1
+        )[0]
+        item['pred'] = response
         results.append(item)
 
         print("------------------------------", flush=True)
@@ -54,52 +54,16 @@ def save_jsonl(data, path):
 
 def main():
     parser = argparse.ArgumentParser(description="Run inference on multiple model checkpoints.")
-    parser.add_argument(
-        "--model_id", 
-        type=str, 
-        default=None,
-        help="Hugging Face model ID or local path for a pretrained model. If specified, uses pretrained mode."
-    )
-    parser.add_argument(
-        "--model_dir", 
-        type=str, 
-        default=None,
-        help="Directory containing model checkpoints. Used only if --model_id is not provided."
-    )
-    parser.add_argument(
-        "--test_file_path", 
-        type=str, 
-        default="data/movie/benchmarks/en-ja-fr-es-zh_2025-01-01_2025-08-31/cl-kt/en/val.jsonl", 
-        help="Path to JSONL file with validation prompts."
-    )
-    parser.add_argument(
-        "--output_dir", 
-        type=str, 
-        default="inference_output/movie/en-ja-fr-es-zh_2025-01-01_2025-08-31/cl-kt/en",
-        help="Directory to save generated responses."
-    )
+    parser.add_argument("--model_dir", type=str)
+    parser.add_argument("--test_file_path", type=str)
+    parser.add_argument("--output_dir", type=str)
     parser.add_argument("--temperature", type=float, default=0.0)
-    parser.add_argument("--n_return", type=int, default=1)
     args = parser.parse_args()
 
     val_data = load_jsonl(args.test_file_path)
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # --------------------
-    # Pretrained model mode
-    # --------------------
-    if args.model_id:
-        print(f"[INFO] Using pretrained model: {args.model_id}")
-        lm = LanguageModelPretrained(args.model_id)
-        save_path = os.path.join(args.output_dir, f"{args.model_id.split('/')[1]}_pred.jsonl")
-        if os.path.exists(save_path):
-            print(f"Pass Exist File : {save_path}")
-        else:
-            outputs = run_inference(lm, val_data, args.temperature, args.n_return)
-            save_jsonl(outputs, save_path)
-            print(f"[✓] Saved: {save_path}")
-        return
 
     # --------------------
     # Checkpoint directory mode
@@ -127,7 +91,7 @@ def main():
             continue
 
         lm = LanguageModel(ckpt_dir)
-        outputs = run_inference(lm, val_data, args.temperature, args.n_return)
+        outputs = run_inference(lm, val_data, args.temperature)
         save_jsonl(outputs, save_path)
         print(f"[✓] Saved: {save_path}")
 

@@ -2,37 +2,8 @@ import os
 import json
 import re
 import argparse
-import numpy as np
-import random
-import pandas as pd
 from collections import defaultdict
-from collections import Counter
-from scipy.stats import kendalltau
-from openai_client import OpenAIModel_parallel
 
-
-STANCES = ["supportive", "opposing", "neutral"]
-MODEL = OpenAIModel_parallel('gpt-4o-mini-2024-07-18', temperature=0.8, max_tokens=9999)
-
-
-NLQ_JUDGE_Template = """
-    You are evaluating a question–answer task.
-
-    Question: {q}
-    Correct Answer: {ans_text}
-    Model Response: {pred}
-
-    Your task:
-    1. Check if the model’s response provides a clear and unambiguous answer.
-    2. Mark it correct if the response expresses the same meaning as the correct answer, even if the wording or language is different.
-    3. Mark it incorrect if the response:
-        - Gives multiple possible answers,
-        - Contradicts the correct answer,
-        - Or does not clearly match the expected answer.
-
-    Output strictly in the following JSON format:
-    {{"correct": "True"}} or {{"correct": "False"}}
-"""
 
 
 def load_jsonl(path):
@@ -44,15 +15,9 @@ def load_jsonl(path):
     return data
 
 
-def save_jsonl(data, path):
-    """Save list of dicts to a JSONL file."""
-    with open(path, "w", encoding="utf-8") as f:
-        for item in data:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
-
 
     
-def mcq_eval(question: str, pred: str, ans_choice: str, ans_text: str) -> bool:
+def mcq_eval(pred: str, ans_choice: str, ans_text: str) -> bool:
     print("-"*20)
     print(f"Expected answer: {ans_choice}. {ans_text}")
     print(f"Predicted response: {pred}")
@@ -69,42 +34,8 @@ def mcq_eval(question: str, pred: str, ans_choice: str, ans_text: str) -> bool:
 
     else:
         print(f"Fail Parse Letter Choice")
-        # random choose a letter
-        pred = random.choice(['A', 'B', 'C', 'D'])
-        if pred == ans_choice:
-            print("Guess: True")
-            return True
-        else:
-            print("Guess: False")
-            return False
+        return False
 
-
-
-def nlq_eval(question: str, pred: str, ans_text: str) -> bool:
-    print("-"*20)
-    print(f"Expected answer: {ans_text}")
-    print(f"Predicted response: {pred}")
-
-    print("Start LLM Judge")
-    response = MODEL.generate(
-        prompt=NLQ_JUDGE_Template.format(
-            q=question, 
-            pred=pred, 
-            ans_text=ans_text
-        ),
-        response_format={"type": "json_object"},
-        num_return_sequences=1
-    ).text[0].strip()
-    print("LLM Judge Response:", response)
-    is_correct = json.loads(response)["correct"]
-    if isinstance(is_correct, str):
-        is_correct = (is_correct.lower() == "true")
-
-    if is_correct:
-        print("LLM Judge --> True")
-        return True
-    print("LLM Judge --> False")   
-    return False
 
 
 
@@ -128,10 +59,7 @@ def cl_kt_eval(pred_path):
         # Map language → correctness
         lang_correct = {}
         for item in items:
-            is_correct = mcq_eval(
-                item['question'], item['pred'], 
-                item['answer'], item['text_answer']
-            )
+            is_correct = mcq_eval(item['pred'], item['answer'], item['text_answer'])
             lang_correct[item['test_lang']] = is_correct
 
         for item in items:
@@ -161,88 +89,43 @@ def cl_kt_eval(pred_path):
         for metric_name, values in metrics_eval.items():
             correct = sum(values)
             total = len(values)
-            score = correct / total if total else 0
-            results[metric_name] = {
-                "score": score,
-                "correct": correct,
-                "total": total,
-            }
+            score = round(correct / total, 3) if total else 0
+            results[metric_name] = {"score": score, "correct": correct, "total": total}
 
         final_scores[str(lang_pair)] = results
     return final_scores
 
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Process answer and prediction files.")
+    parser = argparse.ArgumentParser(description="Evaluate a single prediction JSONL file.")
     parser.add_argument(
-        "--pred_dir", 
-        type=str, 
-        default="test_output/movie/en-ja-zh-fr-es-2025-01-01-2025-07-31/kt",
-        help="Directory of prediction JSONL file."
-    )
-    parser.add_argument(
-        "--output_dir", 
-        type=str, 
-        default="eval_result/FR-TW-JP-US-ES_2025-01-01_2025-07-15/",
-        help="Directory of eval result"
-    )
-    parser.add_argument(
-        "--qa_type",
+        "--pred_file",
         type=str,
-        default="mc",
-        help="Type of benchmark "
+        required=True,
+        help="Path to a single prediction JSONL file."
     )
     parser.add_argument(
-        "--epnum",
-        type=int,
-        default=3,
-        help="Number of epochs for finetuned models"
-    )
-    parser.add_argument(
-        "--model_type",
+        "--output_file",
         type=str,
-        default="finetune",
-        choices=["finetune", "pretrain"],
-        help="Type of model (finetune or pretrain)"
+        required=True,
+        help="Path to output evaluation result JSON file."
     )
-    
+
     args = parser.parse_args()
-    pred_dir = args.pred_dir
-    qa_type = args.qa_type
-    model_type = args.model_type
 
-    epnum =args.epnum
+    if not os.path.exists(args.pred_file):
+        raise FileNotFoundError(f"Prediction file not found: {args.pred_file}")
 
-    os.makedirs(args.output_dir, exist_ok=True)
-    output_file = os.path.join(args.output_dir, f"eval_result.json")
-    if os.path.exists(output_file):
-        # end
-        print(f"⚠️ Eval result already exists: {output_file}. Please remove it first if you want to re-evaluate.")
-        exit(0)
+    output_dir = os.path.dirname(args.output_file)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
 
-    if qa_type in ['mc']:
-        eval_result = {}
-        if model_type == "pretrain":
-            for fn in os.listdir(pred_dir):
-                ckpt_pred_path = os.path.join(pred_dir, fn)
-                model_name = fn.split("_pred.jsonl")[0]
-                print(f"Evaluating {ckpt_pred_path} ...")
-                seq = cl_kt_eval(ckpt_pred_path)
-                eval_result[model_name] = seq
-        else:
-            for model in os.listdir(pred_dir):
-                seq = []
-                for epoch in range(1, epnum+1):
-                    filename = f"checkpoint-epoch-{epoch}_pred.jsonl"
-                    ckpt_pred_path = os.path.join(pred_dir, model, filename)
-                    print(f"Evaluating {model} at epoch {epoch}...")
-                    seq.append(cl_kt_eval(ckpt_pred_path))
-                eval_result[model] = seq
+    print(f"Evaluating: {args.pred_file}")
+    eval_result = cl_kt_eval(args.pred_file)
 
-    else:
-        print(f"Unsupported Question Type {qa_type}")
-
-    # Save the results to a JSON file
-    with open(output_file, "w", encoding="utf-8") as f:
+    with open(args.output_file, "w", encoding="utf-8") as f:
         json.dump(eval_result, f, ensure_ascii=False, indent=2)
-    print(f"Evaluation results saved to {output_file}")
+    
+    print(json.dumps(eval_result, indent=2, ensure_ascii=False))
+    print(f"Evaluation results saved to {args.output_file}")
