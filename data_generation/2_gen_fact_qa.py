@@ -102,7 +102,7 @@ def gen_FactQA(model, knowledge, source_lang, langs, templates, save_dir):
 
 
 
-def main(training_docs_dir, output_dir, source_lang, qlangs, domain):
+def main(training_docs_dir, output_dir, source_lang, test_languages, domain):
     if domain == "music":
         templates = music_genQA_prompts
     elif domain == "movie":
@@ -128,7 +128,7 @@ def main(training_docs_dir, output_dir, source_lang, qlangs, domain):
         os.makedirs(save_dir, exist_ok=True)
         gen_FactQA(
             model, knowledge_text, source_lang, 
-            qlangs, templates, save_dir
+            test_languages, templates, save_dir
         )
 
 
@@ -139,13 +139,13 @@ if __name__ == "__main__":
     parser.add_argument("--training_docs_dir", type=str, default="data/training_docs/movie/2025-01-01_2025-07-31")
     parser.add_argument("--output_dir", type=str, default="data/factQA/movie")
     parser.add_argument("--source_lang", type=str, default="en")
-    parser.add_argument("--qlangs", type=str, nargs="+", default=["en", "ja", "zh", "fr", "es"])
+    parser.add_argument("--test_languages", type=str, nargs="+", default=["en", "ja", "zh", "fr", "es"])
     args = parser.parse_args()
 
     main(
         args.training_docs_dir,
         args.output_dir,
         args.source_lang,
-        args.qlangs,
+        args.test_languages,
         args.domain,
     )

@@ -1,4 +1,6 @@
 .env
 data
+test_data
+upload.py
 **/__pycache__/
 test_env

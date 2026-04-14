@@ -28,7 +28,7 @@ def get_train_doc(model, unit, lang, domain, templates):
         else:
             output = model.generate(
                 prompt=templates.DOC_TRANSLATE_TEMPLATE.format(
-                    description=", ".join(unit.get("description", [])),
+                    description=unit.get("description", ""),
                     lang=target_lang
                 ),
                 response_format={"type": "json_object"}
@@ -65,17 +65,17 @@ def get_train_doc(model, unit, lang, domain, templates):
         if target_lang == "en":
             translated_doc = templates.DOC_TEMPLATE.format(
                 title=unit['title'],
-                casts=", ".join(unit.get("top5cast", [])),
-                summary=" ".join(unit.get("summary", [])),
-                synopsis=" ".join(unit.get("synopsis", [])),
+                casts=", ".join(unit.get("top5cast", "")),
+                summary=unit.get("summary", ""),
+                synopsis=unit.get("synopsis", ""),
             )
 
         else:
 
             sss = templates.DOC_TRANSLATE_TEMPLATE.format(
-                    casts=", ".join(unit.get("top5cast", [])),
-                    summary=" ".join(unit.get("summary", [])),
-                    synopsis=" ".join(unit.get("synopsis", [])),
+                    casts=", ".join(unit.get("top5cast", "")),
+                    summary=unit.get("summary", ""),
+                    synopsis=unit.get("synopsis", ""),
                     lang=target_lang
                 )
 

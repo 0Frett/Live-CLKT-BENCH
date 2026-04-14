@@ -9,8 +9,8 @@ Score: {home_score} - {away_score}
 Venue: {venue}
 
 Innings Breakdown:
-{home_team}: {home_innings} → Hits: {home_hits}, Errors: {home_errors}
-{away_team}: {away_innings} → Hits: {away_hits}, Errors: {away_errors}
+{home_team}: {home_innings}
+{away_team}: {away_innings}
 """
 
 
@@ -45,10 +45,10 @@ def build_doc(unit: dict) -> str:
         venue=venue,
         home_innings=format_innings(home_stats.get("innings", [])),
         away_innings=format_innings(away_stats.get("innings", [])),
-        home_hits=home_stats.get("hits", ""),
-        away_hits=away_stats.get("hits", ""),
-        home_errors=home_stats.get("errors", ""),
-        away_errors=away_stats.get("errors", ""),
+        # home_hits=home_stats.get("hits", ""),
+        # away_hits=away_stats.get("hits", ""),
+        # home_errors=home_stats.get("errors", ""),
+        # away_errors=away_stats.get("errors", ""),
     )
 
 

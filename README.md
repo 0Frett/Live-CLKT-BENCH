@@ -1,5 +1,6 @@
 # LiveCLKTBench 
 [![arXiv](https://img.shields.io/badge/arXiv-2511.14774-b31b1b.svg)](https://arxiv.org/abs/2511.14774)
+[![HuggingFace Dataset](https://img.shields.io/badge/HuggingFace-Dataset-yellow)](https://huggingface.co/datasets/frett/Live-CLKT-Bench)
 
 Evaluating cross-lingual knowledge transfer in large language models is challenging, as correct answers in a target language may arise either from genuine transfer or from prior exposure during pre-training.
 We present **LiveCLKTBench**, an automated pipeline for generating realistic, contamination-free, and continuously refreshable benchmarks for **C**ross-**L**ingual **K**nowledge **T**ransfer. 
@@ -23,8 +24,8 @@ Date: 2026-03-26
 Score: 0 - 3
 Venue: Great American Ball Park
 Innings Breakdown:
-Cincinnati Reds: 0 0 0 0 0 0 0 0 0 → Hits: 4, Errors: 0
-Boston Red Sox: 0 0 0 0 0 0 1 0 2 → Hits: 12, Errors: 1
+Cincinnati Reds: 0 0 0 0 0 0 0 0 0
+Boston Red Sox: 0 0 0 0 0 0 1 0 2
 
 ===== Test set instance =====
 'シンシナティ・レッズ 対 ボストン・レッドソックス' の試合で、'2026-03-26' にシンシナティ・レッズは何得点しましたか？ 
@@ -51,9 +52,9 @@ This step retrieves and identifies valid knowledge entities from the selected do
 PYTHONPATH=lib python3 data_generation/0_collect_entity.py \
     --domain sports \
     --start_str 2026-03-01 \
-    --end_str 2026-04-01 \
+    --end_str 2026-04-10 \
     --output_dir test_data/entities \
-    --max_entity 20
+    --max_entity 50
 ```
 Arguments:
 ```
@@ -69,7 +70,7 @@ Generate and translate context documents for each collected entity. These docume
 ```
 PYTHONPATH=lib python3 data_generation/1_gen_train_docs.py \
     --domain sports \
-    --entity_file test_data/entities/sports/2026-03-01_2026-04-01.json \
+    --entity_file test_data/entities/sports/2026-03-01_2026-04-10.json \
     --output_dir test_data/train_docs/sports \
     --test_languages en ja fr es zh
 ```
@@ -81,7 +82,7 @@ Generate factual, document-grounded multiple-choice questions in different langu
 ```
 PYTHONPATH=lib python3 data_generation/2_gen_fact_qa.py \
     --domain sports \
-    --training_docs_dir test_data/train_docs/sports/2026-03-01_2026-04-01 \
+    --training_docs_dir test_data/train_docs/sports/2026-03-01_2026-04-10 \
     --output_dir test_data/factQA/sports \
     --test_languages en ja fr es zh
 ```
@@ -96,15 +97,15 @@ Combine the generated QA pairs and source documents to construct the final bench
 In practice, the standard version is usually sufficient to maintain a non-contaminated set, since the entities are very recent and are unlikely to appear in the model’s training data.
 ```
 PYTHONPATH=lib python3 data_generation/3_gen_cl-kt.py \
-    --factqa_dir test_data/factQA/sports/2026-03-01_2026-04-01 \
-    --training_docs_dir test_data/train_docs/sports/2026-03-01_2026-04-01 \
+    --factqa_dir test_data/factQA/sports/2026-03-01_2026-04-10 \
+    --training_docs_dir test_data/train_docs/sports/2026-03-01_2026-04-10 \
     --output_dir test_data/benchmark/sports \
     --test_languages en ja fr es zh \
     --val_ratio 0.2
 
 PYTHONPATH=lib python3 data_generation/3_gen_cl-kt_additional_check.py \
-    --factqa_dir test_data/factQA/sports/2026-03-01_2026-04-01 \
-    --training_docs_dir test_data/train_docs/sports/2026-03-01_2026-04-01 \
+    --factqa_dir test_data/factQA/sports/2026-03-01_2026-04-10 \
+    --training_docs_dir test_data/train_docs/sports/2026-03-01_2026-04-10 \
     --output_dir test_data/benchmark_add/sports \
     --test_languages en ja fr es zh \
     --val_ratio 0.2 \
